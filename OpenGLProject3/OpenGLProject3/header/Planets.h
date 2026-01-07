@@ -8,6 +8,7 @@
 #include <string>
 #include <Sphere.h>
 #include <iostream> // Include for logging
+#include <Trail.h>
 
 struct PlanetData {
 	std::string name;
@@ -25,9 +26,11 @@ private:
 	glm::dvec3 position = glm::dvec3(0.0);
 
 	const double G = 6.67430e-11;
-	const double TIME_SCALE = 100000.0;  // Much faster - was 100.0
+	const double TIME_SCALE = 1000000.0;  // Much faster - was 100.0
 
 	float lastUpdateTime = 0.0f;
+
+	Trail* trail = nullptr;
 
 public:
 	std::vector<PlanetData> planets = {
@@ -65,6 +68,7 @@ public:
 				}
 				
 				planetSetup();
+				
 
 				// Initialize position and velocity
 				if (data.name == "Sun") {
@@ -82,6 +86,9 @@ public:
 					// Store velocity in scaled units (will be converted back in update)
 					velocity = glm::dvec3(0.0, 0.0, orbitalSpeed / 1e10);  // CHANGE: vec3 → dvec3, remove 'f'
 				}
+
+				trail = new Trail(glm::vec3(position), 1.0f, 500, 0.2f); // Initialize trail
+
 
 				return;
 			}
@@ -105,6 +112,8 @@ public:
 		glDeleteVertexArrays(1, &vaoId);
 		glDeleteBuffers(1, &vboId);
 		glDeleteBuffers(1, &iboId);
+
+		if (trail) delete trail;
 	}
 
 	void planetSetup() {
@@ -220,6 +229,12 @@ public:
 		// Convert back to scaled units for rendering
 		velocity = realVelocity / 1e10;
 		position = realPosition / 1e10;
+
+
+		if (trail) {
+			trail->update(glm::vec3(position), 1.0f); // visibility = 1.0f
+		
+		}
 	}
 
 	// Draw the planet
@@ -240,6 +255,10 @@ public:
 
 		glDrawElements(GL_TRIANGLES, sphere.getIndexCount(), GL_UNSIGNED_INT, 0);
 		glBindVertexArray(0);
+
+		if (trail) {
+			trail->draw(shader, data.color);
+		}
 	}
 
 	

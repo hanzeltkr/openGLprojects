@@ -145,6 +145,7 @@
     <ClInclude Include="header\Planets.h" />
     <ClInclude Include="header\Shader.h" />
     <ClInclude Include="header\Sphere.h" />
+    <ClInclude Include="header\Trail.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

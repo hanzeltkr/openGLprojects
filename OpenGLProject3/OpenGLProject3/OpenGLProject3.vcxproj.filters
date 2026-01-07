@@ -42,5 +42,8 @@
     <ClInclude Include="header\Planets.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="header\Trail.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
