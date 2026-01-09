@@ -81,6 +81,17 @@ int main() {
 	Planet saturn("Saturn");
 	Planet uranus("Uranus");
 	Planet neptune("Neptune");
+
+	std::vector<Planet*> allPlanets;
+	allPlanets.push_back(&sun);
+	allPlanets.push_back(&mercury);
+	allPlanets.push_back(&venus);
+	allPlanets.push_back(&earth);
+	allPlanets.push_back(&mars);
+	allPlanets.push_back(&jupiter);
+	allPlanets.push_back(&saturn);
+	allPlanets.push_back(&uranus);
+	allPlanets.push_back(&neptune);
 	
 
 
@@ -93,6 +104,8 @@ int main() {
 	int projectionLoc = glGetUniformLocation(ourShader.ID, "projection");
 
 	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 
 
@@ -130,24 +143,15 @@ int main() {
 		glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
 
-		sun.draw(ourShader, sun, deltaTime);
-		mercury.draw(ourShader, sun, deltaTime);
-		venus.draw(ourShader, sun, deltaTime);
-
-		earth.draw(ourShader, sun, deltaTime);
-
 		static int frameCount = 0;
 		if (frameCount++ % 60 == 0) {  // Print every 60 frames
 			glm::vec3 pos = earth.getPosition();
 			std::cout << "Earth: (" << pos.x << ", " << pos.y << ", " << pos.z << ")" << std::endl;
 		}
 
-		mars.draw(ourShader, sun, deltaTime);
-		jupiter.draw(ourShader, sun, deltaTime);
-		saturn.draw(ourShader, sun, deltaTime);
-		uranus.draw(ourShader, sun, deltaTime);
-		neptune.draw(ourShader, sun, deltaTime);
-
+		for (Planet* planet : allPlanets) {
+			planet->draw(ourShader, allPlanets, deltaTime);
+		}
 
 
 

@@ -1,4 +1,4 @@
-#ifndef TRAILS_H
+﻿#ifndef TRAILS_H
 #define TRAILS_H
 
 #include <glad/glad.h>
@@ -29,7 +29,7 @@ public:
 	glm::vec3 lastSegmentPosition;
 
 	// Fade out factor
-	int fadeOutSegments = 4;
+	int fadeOutSegments = 100;
 	float width = 1.0f;
 	float minLength = 0.01f;
 
@@ -144,15 +144,16 @@ public:
 			// if we are already at max segments, remove the oldest
 			if (currentSegment >= segments - 1) {
 				shiftDownSegments();
+				currentSegment = segments - 2;
 			}
 			else {
 				segmentsUsed++;
 			}
 
 			// Update last segment with new position
-			vertices[currentSegment * 2] = { newPosition + normalVector * width, glm::vec2(1.0f, 0.0f), encodeVisibility(visibility) };
-			vertices[currentSegment * 2 + 1] = { newPosition - normalVector * width, glm::vec2(1.0f, 1.0f), encodeVisibility(visibility) };
-			
+			vertices[currentSegment * 2] = { newPosition + normalVector * width, glm::vec2(1.0f, 0.0f), 1.0f };
+			vertices[currentSegment * 2 + 1] = { newPosition - normalVector * width, glm::vec2(1.0f, 1.0f), 1.0f };
+
 			// Fade out
 			// Cannot have moew fadeout segments than initial segments
 			int max_fade_out_segments = std::min(fadeOutSegments, currentSegment);
@@ -194,21 +195,22 @@ public:
 
 			// Visibility
 			// Fade out the trail to the back
-			int max_fade_out_segments = std::min(fadeOutSegments, currentSegment);
+			int max_fade_out_segments = std::min(fadeOutSegments, segmentsUsed);
 
-			if (max_fade_out_segments > 0) {
-				// Get the percentage of advice towards the next_segmentLength when we need to change the vertices again
-				float percent = directionLength / segmentLength / max_fade_out_segments;
+			for (int i = 0; i < max_fade_out_segments; i++) {
+				// Fade from 0.0 (invisible) at start to 1.0 (visible) at fadeOutSegments
+				float alpha = static_cast<float>(i) / static_cast<float>(max_fade_out_segments);
 
-				for (int i = 0; i < max_fade_out_segments; i++) {
-					// Linear function y = 1/max * x - percent
-					float visibilityTerm = std::min(1.0f / max_fade_out_segments * i - percent, decodeVisibility(vertices[i * 2].visibility));
-					visibilityTerm = encodeVisibility(visibilityTerm);
-
-					vertices[i * 2].visibility = visibilityTerm;
-					vertices[i * 2 + 1].visibility = visibilityTerm;
-				}
+				vertices[i * 2].visibility = alpha;
+				vertices[i * 2 + 1].visibility = alpha;
 			}
+
+			// ✅ Ensure remaining segments are fully visible
+			for (int i = max_fade_out_segments; i < segmentsUsed; i++) {
+				vertices[i * 2].visibility = 1.0f;
+				vertices[i * 2 + 1].visibility = 1.0f;
+			}
+
 		}
 
 		updateBuffers();
