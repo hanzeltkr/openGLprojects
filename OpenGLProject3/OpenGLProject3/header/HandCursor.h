@@ -26,10 +26,24 @@ private:
 	float screenWidth;
 	float screenHeight;
 
+	bool key1WasPressed = false;
+	float zoomStartLength = 0.0f;
+
+	bool key2WasPressed = false;
+	float initialYaw = 0.0f;
+	float initialPitch = 0.0f;
+	float initialHandYaw = 0.0f;
+	float initialHandPitch = 0.0f;
+
+	glm::vec3 orbitCenter = glm::vec3(0.0f, 0.0f, 0.0f);  // Point to orbit around
+	float orbitDistance = 0.0f;
+
 public:
 	int x;
 	int y;
 	float l;
+	int hx1, hy1, hx2, hy2;
+	float hz1, hz2;
 	float prevl;
 	int prevX;
 	int prevY;
@@ -39,7 +53,8 @@ public:
 	std::atomic<int> inputTypeCode; // Store input types as integer code
 	std::atomic<int> handX;
 	std::atomic<int> handY;
-	std::atomic<float> length;
+	std::atomic<int> x1, y1, x2, y2;
+	std::atomic<float> length, z1, z2;
 	std::atomic<bool> handDataReady;
 
 	// Constructor
@@ -58,6 +73,8 @@ public:
 		handX(0),
 		handY(0),
 		length(0),
+		x1(0), y1(0), z1(0.0f),
+		x2(0), y2(0), z2(0.0f),
 		handDataReady(false) {
 		
 		// Create unit circle at (0,0)
@@ -101,15 +118,21 @@ public:
 
 		char buffer[256];
 		while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-			int code, x, y;
-			float l;
-			if (sscanf_s(buffer, "%d %d %d %f", &code, &x, &y, &l) == 4) {
+			int code, cx, cy, hx1, hy1, hx2, hy2;
+			float l, hz1, hz2;
+			if (sscanf_s(buffer, "%d %d %d %f %d %d %f %d %d %f", &code, &cx, &cy, &l, &hx1, &hy1, &hz1, &hx2, &hy2, &hz2) == 10) {
 				l = roundf(l * 10.0f) / 10.0f;
 
 				inputTypeCode.store(code);
-				handX.store(x);
-				handY.store(y);
+				handX.store(cx);
+				handY.store(cy);
 				length.store(l);
+				x1.store(hx1);
+				y1.store(hy1);
+				z1.store(hz1);
+				x2.store(hx2);
+				y2.store(hy2);
+				z2.store(hz2);
 				handDataReady.store(true);
 			}
 		}
@@ -124,6 +147,12 @@ public:
 			x = handX.load();
 			y = handY.load();
 			l = length.load();
+			hx1 = x1.load();
+			hy1 = y1.load();
+			hz1 = z1.load();
+			hx2 = x2.load();
+			hy2 = y2.load();
+			hz2 = z2.load();
 
 			const char* methodName = "unknown";
 			if (method == 1) methodName = "position";
@@ -133,7 +162,7 @@ public:
 			else if (method == 5) methodName = "clicking";
 
 			// For debugging
-			std::cout << "Hand: " << methodName << ", " << x << ", " << y << ", " << l << std::endl;
+			std::cout << "Hand: " << methodName << ", " << x << ", " << y << ", " << l << ", " << hx1 << ", " << hy1 << ", " << hz1 << ", " << hx2 << ", " << hy2 << ", " << hz2 << std::endl;
 
 			draw(x, y);
 
@@ -168,24 +197,109 @@ public:
 	
 
 	void processInput(GLFWwindow* window, float deltaTime, Camera* camera) {
-		float cameraSpeed = 15.0f * deltaTime;
 
-		if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS && l != prevl) {
-			float lengthDiff = l - prevl;
-			std::cout << "Zoom: lengthDiff = " << lengthDiff << std::endl;  // ✅ Debug
+		bool key1Pressed = glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS;
 
-			// ✅ Fixed: positive = spreading = zoom out, negative = pinching = zoom in
-			if (lengthDiff > 0.5f) {
-				camera->cameraPos -= cameraSpeed * camera->cameraFront * 3.0f;  // Zoom out
-				prevl = l;
-			}
-			else if (lengthDiff < -0.5f) {
-				camera->cameraPos += cameraSpeed * camera->cameraFront * 3.0f;  // Zoom in
-				prevl = l;
-			}
-			
+		// Capture starting length
+		if (key1Pressed && !key1WasPressed) {
+			zoomStartLength = l;
 		}
-			
+
+		if (key1Pressed) {
+			float lengthDiff = l - zoomStartLength;
+			float zoomSpeed = lengthDiff * 0.1f * deltaTime;
+			camera->cameraPos -= zoomSpeed * camera->cameraFront;
+		}
+
+		key1WasPressed = key1Pressed;
+
+
+		// === ORBITAL ROTATION (KEY_2) ===
+		bool key2Pressed = glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS;
+
+		// Initialize orbital parameters when KEY_2 is first pressed
+		if (key2Pressed && !key2WasPressed) {
+			// Set orbit center to origin
+			orbitCenter = glm::vec3(0.0f, 0.0f, 0.0f);
+
+			// Calculate distance from camera to orbit center
+			orbitDistance = glm::length(orbitCenter - camera->cameraPos);
+
+			// Store initial camera angles
+			initialYaw = camera->yaw;
+			initialPitch = camera->pitch;
+
+			// Store initial hand orientation
+			calculateRotationAngles(initialHandYaw, initialHandPitch);
+
+			std::cout << "Orbit mode started - center: (" << orbitCenter.x << ", " 
+					  << orbitCenter.y << ", " << orbitCenter.z << "), distance: " 
+					  << orbitDistance << std::endl;
+			std::cout << "Initial hand angles - yaw: " << initialHandYaw 
+					  << ", pitch: " << initialHandPitch << std::endl;
+		}
+
+		if (key2Pressed) {
+			// Calculate current hand orientation angles
+			float currentHandYaw, currentHandPitch;
+			calculateRotationAngles(currentHandYaw, currentHandPitch);
+
+			// Calculate the difference from initial hand position
+			float handYawDelta = currentHandYaw - initialHandYaw;
+			float handPitchDelta = currentHandPitch - initialHandPitch;
+
+			// Apply rotation offsets with deltaTime for smooth movement
+			float sensitivity = 2.0f;  // Base sensitivity
+			float rotationSpeed = sensitivity * deltaTime;  // Scale by deltaTime
+			float newYaw = initialYaw + handYawDelta * rotationSpeed;
+			float newPitch = initialPitch + handPitchDelta * rotationSpeed;
+
+			// Clamp pitch
+			if (newPitch > 89.0f) newPitch = 89.0f;
+			if (newPitch < -89.0f) newPitch = -89.0f;
+
+			// Calculate new camera position orbiting around center
+			float yawRad = glm::radians(newYaw);
+			float pitchRad = glm::radians(newPitch);
+
+			camera->cameraPos.x = orbitCenter.x + orbitDistance * cos(pitchRad) * sin(yawRad);
+			camera->cameraPos.y = orbitCenter.y + orbitDistance * sin(pitchRad);
+			camera->cameraPos.z = orbitCenter.z + orbitDistance * cos(pitchRad) * cos(yawRad);
+
+			camera->cameraFront = glm::normalize(orbitCenter - camera->cameraPos);
+
+			// Update camera angles
+			camera->yaw = newYaw;
+			camera->pitch = newPitch;
+
+			std::cout << "Orbit: yaw=" << newYaw << ", pitch=" << newPitch
+				<< ", distance=" << orbitDistance << std::endl;
+		}
+
+		key2WasPressed = key2Pressed;
+	}
+
+	// Calculate rotation angles with Z scaling
+	void calculateRotationAngles(float& outYaw, float& outPitch) {
+		float centerX = (hx1 + hx2) / 2.0f;
+		float centerY = (hy1 + hy2) / 2.0f;
+		float centerZ = (hz1 + hz2) / 2.0f;
+
+		float dx = hx1 - centerX;
+		float dy = hy1 - centerY;
+		float dz = hz1 - centerZ;
+
+		// Scale up Z values
+		float zScale = 500.0f; 
+		float dzScaled = dz * zScale;
+
+		outYaw = atan2(dx, dzScaled) * 180.0f / 3.14159f;
+		float horizontalDist = sqrt(dx * dx + dzScaled * dzScaled);
+		outPitch = atan2(dy, horizontalDist) * 180.0f / 3.14159f;
+
+		// Debug output
+		std::cout << "Hand tracking - dx: " << dx << ", dy: " << dy << ", dz: " << dz 
+				  << " (scaled: " << dzScaled << ") -> yaw: " << outYaw << ", pitch: " << outPitch << std::endl;
 	}
 
 };

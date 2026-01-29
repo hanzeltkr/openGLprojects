@@ -49,9 +49,9 @@ METHOD_CODES = {
 }
 
 
-def send_output(output_type, x, y, length):
+def send_output(output_type, cx, cy, length, x1, y1, z1, x2, y2, z2):
     code = METHOD_CODES[output_type]
-    output = f"{code} {x} {y} {length:.2f}"
+    output = f"{code} {cx} {cy} {length:.2f} {x1} {y1} {z1:.4f} {x2} {y2} {z2:.4f}"
     print(output)
     sys.stdout.flush()
 
@@ -78,14 +78,15 @@ while True:
             for id, lm in enumerate(handLms) :
                 # Convert normalized coordinates to pixel coordinates
                 cx, cy = int(lm.x * w), int(lm.y * h)
-                lmList += [[id, cx, cy]]
+                cz = lm.z
+                lmList += [[id, cx, cy, cz]]
                 
                 cv2.circle(img, (cx, cy), 5, (255, 0, 255), cv2.FILLED)
                 cv2.putText(img, str(id), (cx + 10, cy), cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 0, 255), 2)
             
             #print(lmList[4], lmList[8])
-            x1, y1 = lmList[4][1], lmList[4][2]
-            x2, y2 = lmList[8][1], lmList[8][2]
+            x1, y1, z1 = lmList[4][1], lmList[4][2], lmList[4][3]
+            x2, y2, z2 = lmList[8][1], lmList[8][2], lmList[8][3]
             cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
 
             length = math.hypot(x2 - x1, y2 - y1)
@@ -113,25 +114,25 @@ while True:
                     press = True
                     start_press = time.time()
                 elif hold_printed == True :
-                    send_output("holding", cx, cy, length)
+                    send_output("holding", cx, cy, length, x1, y1, z1, x2, y2, z2)
                 else :
                     # Check if held for more than 0.3 seconds
                     if not hold_printed and (time.time() - start_press >= 0.3) :
-                        send_output("startHold", cx, cy, length)
+                        send_output("startHold", cx, cy, length, x1, y1, z1, x2, y2, z2)
                         hold_printed = True
             else :
                 if press == True :
                     end_press = time.time()
                     duration = end_press - start_press
                     if duration < 0.3 :
-                        send_output("click", cx, cy, length)
+                        send_output("click", cx, cy, length, x1, y1, z1, x2, y2, z2)
                     press = False
                     start_press = None
                 elif hold_printed == True :
-                    send_output("endHold", cx, cy, length)
+                    send_output("endHold", cx, cy, length, x1, y1, z1, x2, y2, z2)
                     hold_printed = False
                 else :
-                    send_output("position", cx, cy, length)
+                    send_output("position", cx, cy, length, x1, y1, z1, x2, y2, z2)
 
                 
             cv2.putText(img, str(length), (cx, cy), cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 8, 255), 2)
